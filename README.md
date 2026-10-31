@@ -13,6 +13,7 @@ This repository holds the *why* and the *shape*. The code lives in the
 - [`design/`](design/) — design documents, one per version or slice.
   - [2026-10-16 v1 design](design/2026-10-16-v1-design.md): wholesaler ordering for resellers. Approved.
   - [2026-10-31 v1 Kubernetes deployment](design/2026-10-31-v1-kubernetes-deployment.md): how v1 runs on the xeon cluster and how a commit becomes a release. Proposed.
+  - [2026-10-31 v1 features and functionality](design/2026-10-31-v1-functional-spec.md): what each role can do, screen by screen, with acceptance criteria and the demo script. Proposed.
 - [`adr/`](adr/) — architecture decision records, numbered, never edited after
   acceptance; a later ADR supersedes an earlier one.
   - [0001](adr/0001-quarkus-api-nextjs-web.md) Quarkus API and Next.js web in one repository
@@ -26,6 +27,7 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [0009](adr/0009-flyway-migrates-at-api-start.md) Flyway migrates at API start; migrations stay compatible with the previous release
   - [0010](adr/0010-one-hostname-api-under-api-path.md) One public hostname, the API under `/api`, Auth.js under `/auth`
   - [0011](adr/0011-secrets-created-outside-the-chart.md) Secrets are created outside the chart and referenced by name
+  - [0012](adr/0012-orders-are-immutable-after-placement.md) Orders are immutable after placement; a change is cancel and reorder
 
 ## Principles
 
@@ -47,3 +49,4 @@ This repository holds the *why* and the *shape*. The code lives in the
 |---|---|
 | v1: wholesaler ordering | Design approved, implementation planning |
 | v1: Kubernetes deployment | Design proposed, awaiting review |
+| v1: features and functionality | Spec proposed, awaiting review |
