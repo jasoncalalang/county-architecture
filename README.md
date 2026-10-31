@@ -14,6 +14,7 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [2026-10-16 v1 design](design/2026-10-16-v1-design.md): wholesaler ordering for resellers. Approved.
   - [2026-10-31 v1 Kubernetes deployment](design/2026-10-31-v1-kubernetes-deployment.md): how v1 runs on the xeon cluster and how a commit becomes a release. Proposed.
   - [2026-10-31 v1 features and functionality](design/2026-10-31-v1-functional-spec.md): what each role can do, screen by screen, with acceptance criteria and the demo script. Proposed.
+  - [2026-10-31 v1 interface design](design/2026-10-31-v1-ui-design.md): visual rules, components, every dashboard and order-page screen, states, responsive and accessibility rules. Proposed.
 - [`adr/`](adr/) — architecture decision records, numbered, never edited after
   acceptance; a later ADR supersedes an earlier one.
   - [0001](adr/0001-quarkus-api-nextjs-web.md) Quarkus API and Next.js web in one repository
@@ -50,3 +51,4 @@ This repository holds the *why* and the *shape*. The code lives in the
 | v1: wholesaler ordering | Design approved, implementation planning |
 | v1: Kubernetes deployment | Design proposed, awaiting review |
 | v1: features and functionality | Spec proposed, awaiting review |
+| v1: interface design | Design proposed, awaiting review |
