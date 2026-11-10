@@ -18,7 +18,7 @@ This repository holds the *why* and the *shape*. The code lives in the
 - [`adr/`](adr/) — architecture decision records, numbered, never edited after
   acceptance; a later ADR supersedes an earlier one.
 - [`research/`](research/) — working notes that feed a design; superseded once the design records the outcome.
-  - [2026-10-31 interface reference brief](research/2026-10-31-ui-reference-brief.md): comparables, Mobbin searches per screen, adoption rule, Superdesign order.
+  - [2026-10-31 interface reference brief](research/2026-10-31-ui-reference-brief.md): comparables, Mobbin searches per screen, adoption rule, Superdesign order, and the findings of the Mobbin pass.
   - [0001](adr/0001-quarkus-api-nextjs-web.md) Quarkus API and Next.js web in one repository
   - [0002](adr/0002-google-sign-in-for-wholesalers.md) Google sign-in for wholesaler accounts
   - [0003](adr/0003-resellers-order-from-a-token-link.md) Resellers order from a per-reseller token link, no account

@@ -1,8 +1,8 @@
 # county v1: interface reference brief
 
 Date: 2026-10-31
-Status: working document for the Mobbin research and Superdesign pass;
-feeds the
+Status: Mobbin pass done on 2026-11-10, findings in section 7; Superdesign
+pass pending. Feeds the
 [interface design](https://github.com/jasoncalalang/county-architecture/blob/main/design/2026-10-31-v1-ui-design.md)
 
 ## 1. Why this exists
@@ -12,8 +12,9 @@ screens are built, each one should be checked against shipped products
 that solve the same problem, so that county borrows patterns resellers and
 wholesalers already know. This brief names the comparables, the exact
 searches to run on Mobbin, what to look for in each result, and the rule
-for adopting or rejecting a pattern. It was written in a session where
-Mobbin was not reachable; nothing below is a Mobbin finding yet.
+for adopting or rejecting a pattern. Sections 2 to 6 were
+written in a session where Mobbin was not reachable; section 7 holds what
+Mobbin showed.
 
 ## 2. Comparables
 
@@ -89,3 +90,107 @@ existing canvas, so there is one set of screens, not two.
 - New-order loudness on the dashboard: a badge count on the Orders tab, a
   sound, or nothing beyond the 30-second poll.
 - Whether the confirmation page should offer cancel directly.
+
+## 7. Findings from the Mobbin pass
+
+Run on 2026-11-10: 62 searches across the ten rows of section 3. The 67
+screens worth keeping (28 iOS, 39 web) are in the private Mobbin collection
+[county v1](https://mobbin.com/collections/8ceab915-edda-487d-bed5-92c23fd4ca3f/mobile/screens).
+
+### What Mobbin could and could not show
+
+- Mobbin has iOS and web only. Its web captures are desktop width, so
+  nothing shows an HTML form inside Viber's or Messenger's browser, and
+  nothing shows Android.
+- Not on Mobbin: Rekki, Choco, Growsari, Pepper, Cut+Dry, Ula, Zepto,
+  GrabMerchant, foodpanda partner, Deliveroo Hub, Toast, Lightspeed,
+  Loyverse, Viber and GCash. There is no merchant-side food order queue and
+  no Philippine B2B ordering app in the evidence. B2B Wave, Grab and Lazada
+  were not searched.
+- On Mobbin and used: Shopee (the buyer app and its My Shop seller home),
+  foodpanda and Deliveroo (buyer apps), Faire Wholesale, Shopify (web and
+  iOS), Square, Messenger, WhatsApp, Telegram, Slack, Notion and Figma.
+- Criterion 2 of section 4 was therefore tested against Shopee, foodpanda
+  and Messenger. The Shopee screens are the Indonesian build.
+
+### Adopted
+
+Each is written into the interface design with its "Reference:" note.
+
+| Screen | Pattern | Reference | Design section |
+|---|---|---|---|
+| Order page | The total line and the Place order button stick to the bottom as one block | Shopee, Confirm Order; Woolworths, Cart | 5, 7.1 |
+| Confirmation | While the order is placed: one line on what happens next, and a Cancel order button | Shopee, Order Details; foodpanda, Can I cancel my order? | 5, 7.3 |
+| Orders | A count of placed orders beside Orders in the navigation, on every page | Shopee, My Shop; Shopify admin, Orders | 4, 6.3 |
+| Orders | The main row action at the right edge, Cancel before it | Shopee, My Purchases; Instacart, Order approvals | 4, 6.3 |
+| Resellers | A line in the link reveal saying who can use the link | WhatsApp, New call link; Splitwise, Invite link | 4, 6.6 |
+
+Two of these reach past the interface design. The navigation count needs
+`GET /orders` to accept `status` without `date`, added to section 11 of
+the functional spec. Cancel on the confirmation page is added to section
+4.3 of the functional spec; the rule and the route already existed.
+
+### The open questions of section 6
+
+- **Quantity entry: keep the bare numeric input.** A stepper appeared in 14
+  apps, Shopee among them, but every one held 1 to 3 units, and it needs
+  script or a page load per tap. county orders are 10 or 20 packs, where
+  typing is faster. The one wholesale app, Faire, keeps a number box
+  between its minus and plus. Evidence: strong on steppers in consumer
+  apps, thin on wholesale.
+- **Sticky total: keep it, pinned with the button.** 13 ordering apps keep
+  a total fixed beside the main button. All are native apps, so a fixed
+  footer inside an in-app browser with the keyboard open still needs a
+  device test.
+- **New-order loudness: a count beside Orders, no sound.** Every seller
+  reference that signals waiting work uses a number beside a label. The
+  loud patterns seen (a modal, a countdown) all sat beside an acceptance
+  deadline, which county does not have. Sound cannot be seen in a
+  screenshot and the apps that ring are not on Mobbin.
+- **Cancel on the confirmation page: yes, while placed.** No thank-you
+  screen offered cancel (0 of 7), but county's confirmation URL is also the
+  order's permanent page, and that is where Shopee and Faire put it.
+
+### Confirmed as designed
+
+The references match what the design already does, so nothing changed and
+no note was added: status chips with counts including zeros; date arrows;
+the freshness line; a status badge plus a paid badge; amber for waiting,
+green for done, grey for cancelled (cancelled was red in no app); the
+two-column order detail with a dated history list; the bottom toast; the
+delivery banner with a cut-off sentence (HelloFresh); the receipt-shaped
+confirmation; the bare inactive-link message (Whereby); Block asking and
+Unblock not asking (Messenger); a single set-up form; a labelled Print
+button.
+
+### Not adopted, but worth a decision
+
+These failed criterion 2 on the evidence, or are gaps the references
+exposed rather than patterns to borrow. None is in the interface design.
+
+- Nothing says what happens after Copy link or Copy message. Figma and
+  Wispr Flow confirm with words that name what was copied.
+- The production run carries no time. Two printouts for the same date
+  cannot be told apart once another order is confirmed. Fresha and Semrush
+  stamp their reports.
+- The quantity field starts at 0. A digit typed before that 0 turns 1 into
+  10. An empty field with a 0 placeholder avoids it. This is a reading of
+  the design, not a Mobbin finding.
+- On a phone product card, tapping bare text is the only way to edit. No
+  phone reference showed a price typed inside a list row; Turo and alias
+  put the word Edit beside the price.
+- Below 900 px the design does not say how the order detail lines, the
+  production run rows or the seven day checkboxes are laid out, and the
+  phone order card has no placed time.
+- Unpaid uses the cancelled grey. No app showed a rendered Unpaid badge;
+  Shopify shows money still owed in orange.
+- Reorder appeared once, on Faire's order card. It would suit daily repeat
+  orders and needs server work, so it is a later slice.
+
+### Canvas and record
+
+The design canvas already shows two things this pass did not adopt and the
+interface design does not record: a preview of the message under the link
+box, and a hint under Cut-off time on set-up. Its confirmation artboard
+still says cancelling is done from the price list. The Superdesign pass
+should bring the canvas and the record back in line.

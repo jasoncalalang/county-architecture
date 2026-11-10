@@ -122,6 +122,8 @@ Acceptance criteria are written so that each becomes a test (principle 5).
   *confirmed*" and refreshes the row; nothing is applied twice.
 - **Order detail** shows the reseller, the lines with unit prices and line
   totals, the note, paid, and a history of status changes with timestamps.
+- On every dashboard page, the **Orders** navigation item shows how many
+  orders are placed across all delivery dates.
 
 ### 3.5 Production run
 
@@ -178,6 +180,9 @@ and Chrome browsers on a low-end Android phone (ADR 0001, ADR 0003).
 
 - Below the form, the last 10 orders, newest first: order number, delivery
   date, total, status, and for *placed* orders a **Cancel** button.
+- The confirmation page offers the same **Cancel** while the order is
+  placed, with the line "Your supplier will confirm this order. You can
+  cancel it until then."
 - Cancel asks once ("Cancel order #23?") and then shows the order as
   cancelled. A reseller cannot cancel a confirmed order; the page says
   "Order #23 is confirmed. Contact your supplier to change it."
@@ -314,6 +319,8 @@ English in v1. Pesos as `₱`, dates as `Tue, 4 Nov`, times as `4:00 PM`.
 | Empty order | Add at least one product. |
 | Deactivated product | <name> is no longer available. |
 | Confirmation | Order #23 placed. Delivery on Tue, 4 Nov. Total ₱2,800.00. |
+| Confirmation, while placed | Your supplier will confirm this order. You can cancel it until then. |
+| Link reveal | Paste it into Viber, Messenger or SMS. Anyone with the link can order as <name>. |
 | Reseller cancels a confirmed order | Order #23 is confirmed. Contact your supplier to change it. |
 | Stale dashboard action | This order is now <status>. |
 | Copy message | Hi <name>, you can order from <business> here: <link> |
@@ -392,6 +399,9 @@ proposed here and folded into the design document when accepted.
 - Tenant gains `next_order_number`.
 - Orders are immutable after placement (ADR 0012); no edit endpoint is
   added.
+- `GET /orders` accepts `status` without `date` and then returns orders of
+  that status across all delivery dates, so the navigation can count placed
+  orders (interface design section 6.3).
 
 ## 12. Beyond v1
 
