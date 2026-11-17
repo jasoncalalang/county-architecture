@@ -31,6 +31,7 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [0010](adr/0010-one-hostname-api-under-api-path.md) One public hostname, the API under `/api`, Auth.js under `/auth`
   - [0011](adr/0011-secrets-created-outside-the-chart.md) Secrets are created outside the chart and referenced by name
   - [0012](adr/0012-orders-are-immutable-after-placement.md) Orders are immutable after placement; a change is cancel and reorder
+  - [0013](adr/0013-ordering-persistence-uses-panache.md) Ordering persistence uses Panache with pessimistic locks
 
 ## Principles
 
