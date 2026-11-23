@@ -61,7 +61,12 @@ every proposal and are not restated in each section:
   0013). A resource in another tenant is a 404 (ADR 0013); an unknown or
   blocked token is a 404 too (ADR 0003).
 - **Lock order** is always reseller → business → products by ascending id →
-  order; any new multi-lock workflow fits this order (ADR 0013).
+  order (ADR 0013). No proposal reorders those four or takes one of them
+  out of turn. Three proposals add a lock target the ADR does not list, each
+  at a stated position: the `price_tier` row after the reseller on tier
+  assignment (§2.8), the quote in the order's slot (§3.8) and the
+  `payment_link` row after the order (§6.8). Those are amendments to ADR
+  0013, recorded before the code merges (§8).
 - **Immutability.** An order's lines, note, delivery date and total never
   change after placement; only status and paid change (ADR 0012). Captured
   `order_line` prices never change.
@@ -260,8 +265,8 @@ reseller. That is a reseller → price_tier pair outside placement, which
 ADR 0013's order does not list. No cycle is possible, because deactivating
 or renaming a tier takes only the tier lock and placement never takes it, so
 nothing holds the tier lock while waiting for a reseller. The planned ADR
-0013 amendment named in draft ADR 0014 records the pair alongside the quote and `payment_link`
-positions.
+0013 amendment named in draft ADR 0014 records the pair alongside the quote
+and `payment_link` positions.
 
 *Alternative considered:* the first draft of this document gave the tier
 its own lock slot between business and products (placement share-locks the
@@ -1339,7 +1344,8 @@ payments (`payment_link` as the tail child after order, §6.8). Price tiers
 reuse the product lock on placement (assignment adds a reseller →
 price_tier pair, §2.8), discrepancy hangs children off the order lock
 without locking them, and MOQ/windows add no lock at all. Only one feature
-(payments) needs anything outside the cluster (a Xendit account + secrets per ADR 0011); the rest are pure county.
+(payments) needs anything outside the cluster (a Xendit account + secrets
+per ADR 0011); the rest are pure county.
 
 ---
 
@@ -1391,9 +1397,10 @@ order, without reopening the decisions v1 made for good reasons.
   rules (forward-only, expand-first, no-op for existing tenants), with new
   root tables carrying `UNIQUE (tenant_id, id)` and every table carrying
   tenant-scoped composite FKs.
-- The ADR 0013 lock order is extended, not broken: price tiers add no lock on the
-  placement path, because a product's tier prices are guarded by that
-  product's lock, and assignment adds a reseller → price_tier pair; quotes
+- The ADR 0013 lock order is extended, not broken: price tiers add no lock
+  on the placement path, because a product's tier prices are guarded by
+  that product's lock, and assignment adds a reseller → price_tier pair;
+  quotes
   take the order's slot (reseller → business → quote → order); discrepancy
   hangs children off the order lock; MOQ/windows add no new lock. Payments
   add one lock target, the `payment_link` row, taken last after the order
