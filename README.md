@@ -15,6 +15,7 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [2026-10-31 v1 Kubernetes deployment](design/2026-10-31-v1-kubernetes-deployment.md): how v1 runs on the xeon cluster and how a commit becomes a release. Proposed.
   - [2026-10-31 v1 features and functionality](design/2026-10-31-v1-functional-spec.md): what each role can do, screen by screen, with acceptance criteria and the demo script. Proposed.
   - [2026-10-31 v1 interface design](design/2026-10-31-v1-ui-design.md): visual rules, components, every dashboard and order-page screen, states, responsive and accessibility rules. Proposed.
+  - [2026-11-23 Beyond-v1 build plan](design/2026-11-23-beyond-v1-itemcount-build-plan.md): five deferred features worked through to migrations, endpoints, locks and tests, with a draft ADR 0014 to lift the v1 scope freeze. Proposed.
 - [`adr/`](adr/) — architecture decision records, numbered, never edited after
   acceptance; a later ADR supersedes an earlier one.
 - [`research/`](research/) — working notes that feed a design; superseded once the design records the outcome.
@@ -55,3 +56,4 @@ This repository holds the *why* and the *shape*. The code lives in the
 | v1: Kubernetes deployment | Design proposed, awaiting review |
 | v1: features and functionality | Spec proposed, awaiting review |
 | v1: interface design | Design proposed, awaiting review |
+| Beyond v1: build plan | Proposed, awaiting a scope decision |
