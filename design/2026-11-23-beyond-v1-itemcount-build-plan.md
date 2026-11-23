@@ -33,7 +33,7 @@ this document recommends building them:
 
 | # | Feature | §5.2 rank | Effort | New tables | Touches placement lock path |
 |---|---|---|---|---|---|
-| 1 | Per-reseller price tiers | 1 (highest value) | M | `price_tier`, `product_tier_price` | yes (no new lock) |
+| 1 | Per-reseller price tiers | 1 (highest value) | M | `price_tier`, `product_tier_price` | yes (no new placement lock) |
 | 2 | Quotes → order | 3 | L | `quote`, `quote_line` | yes (quote in order's slot) |
 | 3 | Receive-with-discrepancy | 2 (highest correctness) | M | `discrepancy_report`, `discrepancy_line` | no new root |
 | 4 | MOQ + order-create windows | 4 | M | none (additive columns) | no new lock targets |
@@ -232,8 +232,8 @@ sets an owned association, it does not widen the tenant boundary.
 
 ### 2.8 Lock order and immutability (ADR 0012/0013)
 
-**No new lock.** A product's tier prices are guarded by that product's
-lock, the one ADR 0013 already defines:
+**No new lock on the placement path.** A product's tier prices are guarded by
+that product's lock, the one ADR 0013 already defines:
 
 - `Orders.place()` is unchanged up to the product loop: reseller and
   business `PESSIMISTIC_WRITE`, then each product `PESSIMISTIC_READ` in
@@ -246,13 +246,22 @@ lock, the one ADR 0013 already defines:
   and then reads the committed value.
 - Assigning a reseller's tier takes the reseller `PESSIMISTIC_WRITE`, the
   first lock placement takes, so a placement sees the assignment either
-  wholly before or wholly after.
+  wholly before or wholly after. It then takes the `price_tier`
+  `PESSIMISTIC_READ` (reseller → tier), so a deactivation running at the
+  same time, which holds the tier's write lock, finishes first and the 422
+  active check sees its result.
 - Renaming or (de)activating a tier locks only the `price_tier` row;
   placement never reads that row.
 
-Every workflow here takes at most one of the ADR 0013 locks, so the order
-reseller → business → products → order stands as written and ADR 0013 needs
-no amendment for tiers.
+Placement takes no lock beyond the ADR 0013 chain, so the order reseller →
+business → products → order stands as written there. Tier assignment is the
+one workflow that adds a lock target: the `price_tier` row, taken after the
+reseller. That is a reseller → price_tier pair outside placement, which
+ADR 0013's order does not list. No cycle is possible, because deactivating
+or renaming a tier takes only the tier lock and placement never takes it, so
+nothing holds the tier lock while waiting for a reseller. The planned ADR
+0013 amendment named in draft ADR 0014 records the pair alongside the quote and `payment_link`
+positions.
 
 *Alternative considered:* the first draft of this document gave the tier
 its own lock slot between business and products (placement share-locks the
@@ -306,6 +315,9 @@ Built in `PriceTierApiTest`, `PriceTierIsolationTest` and
   placements see the new price.
 - **Concurrency (ADR 0013):** a placement racing an in-flight tier-price
   edit waits on the product lock and captures the committed tier price.
+  An assignment racing a tier deactivation waits on the tier lock and then
+  rejects the now-inactive tier with 422
+  (`assignmentWaitsForTierDeactivationAndThenRejectsTheInactiveTier`).
 - **Tier retirement:** an inactive tier cannot be assigned (422); a
   reseller already on it keeps its prices (see the open decision in §2.8).
 - **OpenAPI drift:** `PriceTierView`, `TierPricesView`,
@@ -1302,7 +1314,8 @@ content, only in the Flyway version number. Build order:
 1. **Price tiers (M).** §5.2 #1, highest value, slots onto catalog +
    placement with no new infrastructure. It also establishes the "price that
    isn't the flat `product.price`" primitive that quotes depend on. Adds no
-   lock: tier prices are guarded by the existing product lock (§2.8).
+   lock on the placement path: tier prices are guarded by the existing
+   product lock; assignment adds a reseller → price_tier pair (§2.8).
 2. **Quotes → order (L).** §5.2 #3. Build second so the quote line reuses the
    captured-price primitive from tiers rather than hard-coding a second
    pricing path. Reuses the token document + idempotent capture wholesale.
@@ -1323,7 +1336,8 @@ content, only in the Flyway version number. Build order:
 hard ordering dependency. Everything else is independent. Two features
 extend the ADR 0013 lock chain: quotes (the quote in the order's slot) and
 payments (`payment_link` as the tail child after order, §6.8). Price tiers
-reuse the product lock, discrepancy hangs children off the order lock
+reuse the product lock on placement (assignment adds a reseller →
+price_tier pair, §2.8), discrepancy hangs children off the order lock
 without locking them, and MOQ/windows add no lock at all. Only one feature
 (payments) needs anything outside the cluster (a Xendit account + secrets per ADR 0011); the rest are pure county.
 
@@ -1377,14 +1391,15 @@ order, without reopening the decisions v1 made for good reasons.
   rules (forward-only, expand-first, no-op for existing tenants), with new
   root tables carrying `UNIQUE (tenant_id, id)` and every table carrying
   tenant-scoped composite FKs.
-- The ADR 0013 lock order is extended, not broken: price tiers add no lock,
-  because a product's tier prices are guarded by that product's lock; quotes
+- The ADR 0013 lock order is extended, not broken: price tiers add no lock on the
+  placement path, because a product's tier prices are guarded by that
+  product's lock, and assignment adds a reseller → price_tier pair; quotes
   take the order's slot (reseller → business → quote → order); discrepancy
   hangs children off the order lock; MOQ/windows add no new lock. Payments
   add one lock target, the `payment_link` row, taken last after the order
   (reseller → business → products → order → payment_link). A follow-up
-  amendment to ADR 0013 records both the quote position and the
-  `payment_link` tail before that code merges.
+  amendment to ADR 0013 records the quote position, the reseller →
+  price_tier pair and the `payment_link` tail before that code merges.
 - ADR 0012 stands. No edit endpoint is added. Discrepancy reports are an
   append-only sibling record, not an order edit; a short delivery never
   recomputes an order total. Tier/quote/payment changes never mutate captured
@@ -1409,8 +1424,10 @@ order, without reopening the decisions v1 made for good reasons.
 
 - The v1 scope freeze is lifted for exactly these five, in this order. The
   functional spec §12 rows for price tiers, MOQ, payments and discrepancy
-  reports move from *Beyond v1* to in-progress as each lands; the spec and
-  this ADR are updated together, as §11 prescribes for amendments.
+  reports move from *Beyond v1* to in-progress as each lands. The functional
+  spec (§12, and §11 for accepted amendments) is updated at that point; this
+  ADR stays as accepted, and a later ADR supersedes it if the decision
+  changes.
 - Quotes have the weakest mandate (the spec neither includes nor explicitly
   defers them; only the RE report places them post-v1), so quotes do not start
   until the owner confirms the increment. The other four rest on the spec's
