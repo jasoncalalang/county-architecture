@@ -214,7 +214,7 @@ Changed, kept backward-compatible: `Views.Reseller` gains a nullable
 assignment; the dashboard resolves the name from `GET /price-tiers`.
 `Inputs.Reseller` is unchanged. **Unchanged:** `Views.CatalogProduct` and
 `Views.OrderLine` (the `price` field now simply carries the resolved value),
-so ADR 0010's single contract and the reseller order page stay stable, and
+so the committed OpenAPI contract and the reseller order page stay stable, and
 "seeing prices other than your own current price" stays out of scope.
 
 ### 2.7 Tenant scoping
@@ -909,16 +909,31 @@ endpoint).
 
 Additive only. `Inputs.Business` gains `@Schema(format="time", nullable=true)
 String orderWindowStart`, `String orderWindowEnd`, `Set<@NotNull @Min(1)
-@Max(7) Integer> restrictedDays` (defaults to empty, not `@NotEmpty` — unlike
+@Max(7) Integer> restrictedDays` (not `@NotEmpty` — unlike
 `deliveryDays`), `@DecimalMin("0") @Digits(integer=10, fraction=2) BigDecimal
-minOrderValue` (null treated as 0). `Inputs.Product` gains `@Min(1) @Max(9999)
-Integer minOrderQuantity` (null treated as 1). `Views.Business` gains
+minOrderValue`. `Inputs.Product` gains `@Min(1) @Max(9999) Integer
+minOrderQuantity`. Omission must not clear stored values, for the reason
+§2.5 gives for tiers: `Owners.apply`/`product` overwrite these bodies
+wholesale, and a dashboard that predates the slice (or one still running
+during the rollout) would otherwise reset the owner's restricted days,
+minimum order value and every product minimum on each edit. So on
+`PUT /settings` and `PUT /products/{id}` a null (absent) `restrictedDays`,
+`minOrderValue` or `minOrderQuantity` leaves the stored value unchanged;
+the defaults (empty set, 0, 1) apply only on `POST /tenants` and
+`POST /products` and in the migration. An explicit empty set, `0` or `1`
+clears the setting. **Open point:** `orderWindowStart`/`orderWindowEnd` are
+nullable with null meaning "open all day" (§5.9), so null cannot also mean
+"unchanged" for them, and a client that predates the slice would clear the
+window on each settings edit. Whether the window moves to a dedicated
+endpoint (as tier assignment did) or takes an explicit sentinel is the
+owner's choice. `Views.Business` gains
 `orderWindowStart`/`orderWindowEnd` (nullable time strings; `Times.clock`
 is not null-safe today, so it gains a null check),
 `List<Integer> restrictedDays`, `BigDecimal minOrderValue`. `Views.Product`
 and `Views.CatalogProduct` gain `int minOrderQuantity`. `Views.Catalog` gains
 `boolean orderingOpen` plus nullable `opensAt`/`closesAt` and
-`minOrderValue`, so the server-rendered reseller form (ADR 0010, JS-optional)
+`minOrderValue`, so the server-rendered reseller form (ADR 0001, minimal
+client JavaScript)
 can disable Place order and show when it reopens. `Views.Order`,
 `Views.OrderSummary`, `Views.RecentOrder`, `Views.ProductionRun` **unchanged**
 — no per-order persistence of these gates, preserving ADR 0012.
@@ -990,6 +1005,9 @@ functional-spec §5.7:
 - **Concurrency:** two same-reseller same-delivery-date placements racing the
   tally gate serialize under the business lock with no under-min slip-through;
   a `min_order_quantity` edit racing a placement.
+- **PUT without the new fields:** `PUT /settings` and `PUT /products/{id}`
+  bodies that omit `restrictedDays`, `minOrderValue` and `minOrderQuantity`
+  keep the stored values; an explicit empty set, `0` or `1` clears them.
 - **OpenAPI drift:** additive fields on `Views.Business`/`Product`/
   `CatalogProduct`/`Catalog` and `Inputs.Business`/`Product`; order views
   unchanged.
@@ -1106,7 +1124,11 @@ CREATE TABLE payment_event (                           -- append-only webhook le
 settled `payment_link` flips them (nothing else on the order changes). Both
 existing manual paths, `mark-paid` and `deliver` with `paid=true`, are
 re-expressed as a `provider='manual'` `payment_link` row with one
-`payment_event`, so there is one money ledger.
+`payment_event`, so payments recorded after the release land in one ledger.
+The migration backfills nothing, and the previous release keeps setting
+`paid` without ledger rows during the rolling upgrade (ADR 0009 rule 2), so
+`purchase_order.paid` stays authoritative for earlier and in-flight
+payments.
 
 A `payment_event` row exists only for an event that passed verification, so
 the table carries no "verified" flag: an unverified callback writes nothing
@@ -1298,12 +1320,12 @@ content, only in the Flyway version number. Build order:
    matures, since partial payments/receivables are a further slice.
 
 **Dependencies.** Quotes → tiers (shared captured-price primitive) is the only
-hard ordering dependency. Everything else is independent. Quotes are the
-only feature that extends the ADR 0013 lock chain (the quote in the order's
-slot); price tiers reuse the product lock, and discrepancy, MOQ/windows and
-payments add no new lock root (discrepancy and payments hang children off
-the order lock; MOQ/windows add no lock at all). Only one feature (payments) needs anything outside the cluster
-(a Xendit account + secrets per ADR 0011); the rest are pure county.
+hard ordering dependency. Everything else is independent. Two features
+extend the ADR 0013 lock chain: quotes (the quote in the order's slot) and
+payments (`payment_link` as the tail child after order, §6.8). Price tiers
+reuse the product lock, discrepancy hangs children off the order lock
+without locking them, and MOQ/windows add no lock at all. Only one feature
+(payments) needs anything outside the cluster (a Xendit account + secrets per ADR 0011); the rest are pure county.
 
 ---
 
@@ -1353,13 +1375,16 @@ order, without reopening the decisions v1 made for good reasons.
   introduce.
 - Each feature is implemented as its own `V3+__*.sql` migration under ADR 0009
   rules (forward-only, expand-first, no-op for existing tenants), with new
-  tables carrying `UNIQUE (tenant_id, id)` and tenant-scoped composite FKs.
+  root tables carrying `UNIQUE (tenant_id, id)` and every table carrying
+  tenant-scoped composite FKs.
 - The ADR 0013 lock order is extended, not broken: price tiers add no lock,
   because a product's tier prices are guarded by that product's lock; quotes
   take the order's slot (reseller → business → quote → order); discrepancy
-  and payments hang children off the order lock; MOQ/windows add no new
-  lock. A follow-up amendment to ADR 0013 records the quote position before
-  that code merges.
+  hangs children off the order lock; MOQ/windows add no new lock. Payments
+  add one lock target, the `payment_link` row, taken last after the order
+  (reseller → business → products → order → payment_link). A follow-up
+  amendment to ADR 0013 records both the quote position and the
+  `payment_link` tail before that code merges.
 - ADR 0012 stands. No edit endpoint is added. Discrepancy reports are an
   append-only sibling record, not an order edit; a short delivery never
   recomputes an order total. Tier/quote/payment changes never mutate captured

@@ -56,4 +56,4 @@ This repository holds the *why* and the *shape*. The code lives in the
 | v1: Kubernetes deployment | Design proposed, awaiting review |
 | v1: features and functionality | Spec proposed, awaiting review |
 | v1: interface design | Design proposed, awaiting review |
-| Beyond v1: build plan | Proposed, awaiting a scope decision |
+| Beyond v1: build plan | Design proposed, awaiting a scope decision |
