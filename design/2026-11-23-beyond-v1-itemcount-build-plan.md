@@ -65,8 +65,11 @@ every proposal and are not restated in each section:
   out of turn. Three proposals add a lock target the ADR does not list, each
   at a stated position: the `price_tier` row after the reseller on tier
   assignment (§2.8), the quote in the order's slot (§3.8) and the
-  `payment_link` row after the order (§6.8). Those are amendments to ADR
-  0013, recorded before the code merges (§8).
+  `payment_link` row after the order (§6.8). All three follow one rule: a
+  row outside those four is locked only after every one of the four the
+  workflow locks, and no workflow locks it before one of them. ADR 0013 is
+  accepted and is not edited; a new ADR records the rule before the first
+  of these merges (§8).
 - **Immutability.** An order's lines, note, delivery date and total never
   change after placement; only status and paid change (ADR 0012). Captured
   `order_line` prices never change.
@@ -264,15 +267,16 @@ one workflow that adds a lock target: the `price_tier` row, taken after the
 reseller. That is a reseller → price_tier pair outside placement, which
 ADR 0013's order does not list. No cycle is possible, because deactivating
 or renaming a tier takes only the tier lock and placement never takes it, so
-nothing holds the tier lock while waiting for a reseller. The planned ADR
-0013 amendment named in draft ADR 0014 records the pair alongside the quote
-and `payment_link` positions.
+nothing holds the tier lock while waiting for a reseller. The pair is the
+first instance of the rule for added lock targets that draft ADR 0014 calls
+for (§1.1, §8), and the first entry in the lock note of county's
+`api/README.md`.
 
 *Alternative considered:* the first draft of this document gave the tier
 its own lock slot between business and products (placement share-locks the
 `price_tier` row and reads all its prices once; a tier-price edit
-write-locks the tier). It reads every price in one query, but it extends
-the lock chain on the hottest path, needs an ADR 0013 amendment, and makes
+write-locks the tier). It reads every price in one query, but it puts a
+new lock in the middle of ADR 0013's order on the hottest path, and makes
 every tier-price edit block every placement by a reseller on that tier
 rather than only placements containing that product. The product-lock
 guard was built instead. Its cost is one indexed tier-price lookup per
@@ -909,12 +913,15 @@ INTEGER[] style but allows empty, and adds a database range check that
 
 ### 5.5 REST endpoints
 
-All additive; no new paths. Owner: `PUT /settings` and `POST /tenants` gain
-`orderWindowStart`, `orderWindowEnd`, `restrictedDays`, `minOrderValue`;
-`GET /settings` returns them, and so does every other response built from
-`Views.Business`: `POST /tenants` and the `tenant` inside `GET /me`.
-`POST`/`PUT /products` gain `minOrderQuantity` and `GET /products` returns
-it. Reseller: `GET /order/{token}` —
+Additive, with one new owner path. `PUT /settings/order-window` — owner:
+replaces the ordering window as one unit, `Inputs.OrderWindow{start?, end?,
+restrictedDays}` → `Views.Business`. `PUT /settings` and `POST /tenants`
+gain only `minOrderValue`; they neither read nor write the window, and a
+new business starts with ordering always open. `GET /settings` returns the
+window fields and `minOrderValue`, and so does every other response built
+from `Views.Business`: `POST /tenants`, `PUT /settings/order-window` and
+the `tenant` inside `GET /me`. `POST`/`PUT /products` gain
+`minOrderQuantity` and `GET /products` returns it. Reseller: `GET /order/{token}` —
 `Views.Catalog` gains `orderingOpen` (bool), `opensAt`/`closesAt` copy,
 `minOrderValue`, and per-product `minOrderQuantity` on `CatalogProduct` so the
 form can disable submit and show "opens at 8:00 AM". `POST /order/{token}/
@@ -924,26 +931,31 @@ endpoint).
 
 ### 5.6 Views / Inputs
 
-Additive only. `Inputs.Business` gains `@Schema(format="time", nullable=true)
-String orderWindowStart`, `String orderWindowEnd`, `Set<@NotNull @Min(1)
-@Max(7) Integer> restrictedDays` (not `@NotEmpty` — unlike
-`deliveryDays`), `@DecimalMin("0") @Digits(integer=10, fraction=2) BigDecimal
-minOrderValue`. `Inputs.Product` gains `@Min(1) @Max(9999) Integer
-minOrderQuantity`. Omission must not clear stored values, for the reason
-§2.5 gives for tiers: `Owners.apply`/`product` overwrite these bodies
-wholesale, and a dashboard that predates the slice (or one still running
-during the rollout) would otherwise reset the owner's restricted days,
-minimum order value and every product minimum on each edit. So on
-`PUT /settings` and `PUT /products/{id}` a null (absent) `restrictedDays`,
-`minOrderValue` or `minOrderQuantity` leaves the stored value unchanged;
-the defaults (empty set, 0, 1) apply only on `POST /tenants` and
-`POST /products` and in the migration. An explicit empty set, `0` or `1`
-clears the setting. **Open point:** `orderWindowStart`/`orderWindowEnd` are
-nullable with null meaning "open all day" (§5.9), so null cannot also mean
-"unchanged" for them, and a client that predates the slice would clear the
-window on each settings edit. Whether the window moves to a dedicated
-endpoint (as tier assignment did) or takes an explicit sentinel is the
-owner's choice. `Views.Business` gains
+New: `Inputs.OrderWindow(@Schema(format="time", nullable=true) String
+start, @Schema(format="time", nullable=true) String end, @NotNull
+Set<@NotNull @Min(1) @Max(7) Integer> restrictedDays)`. `start` and `end`
+are both null (open all day) or both set with `start` before `end`; one
+without the other is a 422. `restrictedDays` is required, may be empty and
+may not cover all seven days. The body always replaces all three, so every
+field has exactly one meaning.
+
+The window has its own endpoint for the reason §2.5 gives for tier
+assignment. `Owners.apply` overwrites the `PUT /settings` body wholesale,
+and a dashboard that predates the slice (or one still running during the
+rollout) would send no window fields. The inputs are Java records, where an
+omitted field and an explicit null both arrive as null, and null already
+means "open all day" (§5.9). On `PUT /settings` the server could not tell
+"leave the window alone" from "clear it"; on a path that older clients
+never call, it does not have to.
+
+Changed: `Inputs.Business` gains `@DecimalMin("0") @Digits(integer=10,
+fraction=2) BigDecimal minOrderValue`. `Inputs.Product` gains `@Min(1)
+@Max(9999) Integer minOrderQuantity`. Neither has a meaning for null, so on
+`PUT /settings` and `PUT /products/{id}` a null (omitted) value leaves the
+stored one unchanged, and an older client cannot reset the owner's minimums
+by editing something else. The defaults (0 and 1) apply only on
+`POST /tenants` and `POST /products` and in the migration; an explicit `0`
+or `1` clears the minimum. `Views.Business` gains
 `orderWindowStart`/`orderWindowEnd` (nullable time strings; `Times.clock`
 is not null-safe today, so it gains a null check),
 `List<Integer> restrictedDays`, `BigDecimal minOrderValue`. `Views.Product`
@@ -958,7 +970,9 @@ can disable Place order and show when it reopens. `Views.Order`,
 ### 5.7 Tenant scoping
 
 All new config is written only by the owner through the subject-derived tenant
-(`Owners.settings`/`create`/`product`); all enforcement reads happen inside
+(`Owners.settings`/`create`/`product` and the new order-window method, which
+takes no id: the business is the caller's own); all enforcement reads happen
+inside
 `Orders.place()` where the tenant comes from the reseller token. No window/MOQ
 value is ever read from a request field — the reseller's `Inputs.Place`
 (lines, note, idempotencyKey) carries none of these. The MOQ-tally query is
@@ -1022,12 +1036,19 @@ functional-spec §5.7:
 - **Concurrency:** two same-reseller same-delivery-date placements racing the
   tally gate serialize under the business lock with no under-min slip-through;
   a `min_order_quantity` edit racing a placement.
-- **PUT without the new fields:** `PUT /settings` and `PUT /products/{id}`
-  bodies that omit `restrictedDays`, `minOrderValue` and `minOrderQuantity`
-  keep the stored values; an explicit empty set, `0` or `1` clears them.
-- **OpenAPI drift:** additive fields on `Views.Business`/`Product`/
-  `CatalogProduct`/`Catalog` and `Inputs.Business`/`Product`; order views
-  unchanged.
+- **Order-window endpoint:** `PUT /settings/order-window` replaces start,
+  end and restricted days together and returns `Views.Business`; null start
+  and end with an empty set reopens ordering fully; only one of start/end,
+  start not before end, a day outside 1-7 or all seven days → 422;
+  unauthenticated → 401. Each owner changes only their own business, and
+  another business's window is unaffected.
+- **PUT without the new fields:** a `PUT /settings` body in today's shape
+  leaves the window, the restricted days and `minOrderValue` as stored; a
+  `PUT /products/{id}` body that omits `minOrderQuantity` keeps it; an
+  explicit `0` or `1` clears the minimum.
+- **OpenAPI drift:** the new path and `Inputs.OrderWindow`; additive fields
+  on `Views.Business`/`Product`/`CatalogProduct`/`Catalog` and
+  `Inputs.Business`/`Product`; order views unchanged.
 
 ### 5.10 Effort and recommendation
 
@@ -1035,7 +1056,7 @@ Effort **M**. Build fourth, as a fast follow after discrepancy (or swap with
 it — both are M and independent). MOQ/windows is §5.2 item 4 and the reference
 customer charges every reseller the same, so there is no v1 urgency; but it is
 a cheap, self-contained M that reuses `cutoff`/`delivery_days` infrastructure
-with no new tables, endpoints, or locks.
+with no new tables or locks and one new owner endpoint.
 
 **Risks.** (1) Tally semantics are INF from the bundle: confirm with the
 owner that MOQ is cumulative-per-delivery-date-per-reseller (as designed) vs a
@@ -1330,7 +1351,7 @@ content, only in the Flyway version number. Build order:
    pilot's short deliveries land before differentiated pricing is needed.
    Touches no existing contract; adds no new lock root.
 4. **MOQ + order windows (M).** §5.2 #4. Cheap, self-contained, additive
-   columns only, no new tables/endpoints/locks. A fast follow; independent of
+   columns and one owner endpoint, no new tables or locks. A fast follow; independent of
    the others (swap freely with #3).
 5. **Online payment link (M).** §5.2 #5, lowest leverage. Land the data model
    + manual ledger + webhook shape early (fully testable offline), gate the
@@ -1397,16 +1418,24 @@ order, without reopening the decisions v1 made for good reasons.
   rules (forward-only, expand-first, no-op for existing tenants), with new
   root tables carrying `UNIQUE (tenant_id, id)` and every table carrying
   tenant-scoped composite FKs.
-- The ADR 0013 lock order is extended, not broken: price tiers add no lock
-  on the placement path, because a product's tier prices are guarded by
-  that product's lock, and assignment adds a reseller → price_tier pair;
-  quotes
-  take the order's slot (reseller → business → quote → order); discrepancy
-  hangs children off the order lock; MOQ/windows add no new lock. Payments
-  add one lock target, the `payment_link` row, taken last after the order
-  (reseller → business → products → order → payment_link). A follow-up
-  amendment to ADR 0013 records the quote position, the reseller →
-  price_tier pair and the `payment_link` tail before that code merges.
+- The ADR 0013 lock order is extended, not broken. ADR 0013 is accepted and
+  is not edited. A new ADR, accepted before the price-tier code merges,
+  supersedes its lock-order bullet with a rule rather than a longer list:
+  - reseller, business, products by ascending id and order keep their order;
+  - a workflow may lock a row outside those four only after every one of
+    the four it locks, and no workflow locks such a row before one of them;
+  - the added lock targets are listed, in order, in the lock note of
+    `api/README.md` in the county repository, and a workflow that takes
+    more than one takes them in that order. The list is updated in the
+    change that adds a target.
+- The first added target is the `price_tier` row, locked after the reseller
+  when a reseller's tier is assigned. Placement takes no new lock for tiers,
+  because a product's tier prices are guarded by that product's lock.
+  Quotes (reseller → business → quote, then the new order) and payments
+  (the `payment_link` row after the order) fit the rule as designed; each
+  adds its line to the list when it is built and needs no further ADR
+  unless it cannot fit the rule. Discrepancy hangs children off the order
+  lock without locking them; MOQ/windows add no lock.
 - ADR 0012 stands. No edit endpoint is added. Discrepancy reports are an
   append-only sibling record, not an order edit; a short delivery never
   recomputes an order total. Tier/quote/payment changes never mutate captured
