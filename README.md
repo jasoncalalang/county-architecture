@@ -35,6 +35,10 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [0013](adr/0013-ordering-persistence-uses-panache.md) Ordering persistence uses Panache with pessimistic locks
   - [0014](adr/0014-begin-beyond-v1-build.md) Begin the Beyond-v1 build, pricing first
   - [0015](adr/0015-added-lock-targets-follow-the-canonical-four.md) Added lock targets follow the canonical four
+  - [0016](adr/0016-reseller-orders-are-sales-orders.md) A reseller's order is a sales order
+  - [0017](adr/0017-fractional-quantities-round-half-up-per-line.md) Fractional quantities round half up per line
+  - [0018](adr/0018-reseller-links-expire-after-90-days.md) Reseller order links expire after 90 days
+  - [0019](adr/0019-no-official-receipts-while-payment-is-a-flag.md) No official receipts while payment is a flag
 
 ## Principles
 
