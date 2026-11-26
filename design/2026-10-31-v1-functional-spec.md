@@ -271,13 +271,16 @@ records a timestamp (`placed_at`, `confirmed_at`, `delivered_at`,
 | Change | Existing orders | New orders |
 |---|---|---|
 | Price edited | unchanged | new price |
+| Tier price edited / reseller's tier changed | unchanged | new effective price |
 | Product deactivated | unchanged | rejected on that line |
 | Reseller blocked | unchanged, still workable | link shows inactive |
 | Link reissued | unchanged | only the new link works |
 | Settings changed | keep their delivery date | computed with new settings |
 
 Nothing is deleted in v1. Deactivate, block and cancel are the only ways
-to retire something, so history always adds up.
+to retire something, so history always adds up. Since ADR 0014, one
+exception: clearing a product's tier price deletes that pricing row, which
+no order references.
 
 ## 6. Screens
 
@@ -402,6 +405,11 @@ proposed here and folded into the design document when accepted.
 - `GET /orders` accepts `status` without `date` and then returns orders of
   that status across all delivery dates, so the navigation can count placed
   orders (interface design section 6.3).
+- Per-reseller price tiers (ADR 0014, build plan §2): the owner defines
+  named tiers, sets per-product tier prices and assigns a reseller to a
+  tier; that reseller is charged the tier price where one is set, else the
+  base price. A deactivated tier cannot be assigned; resellers already on it
+  keep its prices until reassigned.
 
 ## 12. Beyond v1
 
@@ -411,7 +419,7 @@ proposed here and folded into the design document when accepted.
 | Stock and lots: what is on hand, what each run consumed | The next slice after v1 by the design. |
 | Several users per business with roles (staff confirm and deliver, owner sets prices) | One owner is enough to demo. |
 | Payments: GCash or Maya reference, partial payments, receivables per reseller | The paid flag demos the idea. |
-| Price tiers, per-reseller price lists, minimum order quantities | Every reseller pays the same in the reference customer. |
+| Minimum order quantities | Accepted by ADR 0014; not yet built. Price tiers were built after v1 (§11). |
 | Wholesaler edits and short-delivery discrepancy reports | Cancel and reorder covers the demo (ADR 0012). |
 | Reports and CSV export: sales by reseller, product, period | The production run is the only report a demo needs. |
 | Tagalog and Bisaya interface | English copy is understood by the reference users. |
