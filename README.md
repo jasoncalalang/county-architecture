@@ -34,7 +34,7 @@ This repository holds the *why* and the *shape*. The code lives in the
   - [0012](adr/0012-orders-are-immutable-after-placement.md) Orders are immutable after placement; a change is cancel and reorder
   - [0013](adr/0013-ordering-persistence-uses-panache.md) Ordering persistence uses Panache with pessimistic locks
   - [0014](adr/0014-begin-beyond-v1-build.md) Begin the Beyond-v1 build, pricing first
-  - [0015](adr/0015-added-lock-targets-follow-the-canonical-four.md) Added lock targets follow the canonical four (proposed)
+  - [0015](adr/0015-added-lock-targets-follow-the-canonical-four.md) Added lock targets follow the canonical four
 
 ## Principles
 
@@ -58,4 +58,4 @@ This repository holds the *why* and the *shape*. The code lives in the
 | v1: Kubernetes deployment | Design proposed, awaiting review |
 | v1: features and functionality | Spec proposed, awaiting review |
 | v1: interface design | Design proposed, awaiting review |
-| Beyond v1: build plan | Scope accepted (ADR 0014); lock rule ADR 0015 proposed |
+| Beyond v1: build plan | Accepted (ADR 0014, ADR 0015); price tiers built |

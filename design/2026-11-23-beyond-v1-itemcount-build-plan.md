@@ -201,10 +201,9 @@ The `DELETE` is the first delete in the codebase. Justify it as config:
 tier-price rows carry no order history and are never referenced by placed
 orders, so clearing one is safe. The v1 "nothing is deleted" rule
 (functional-spec §5.7) is itself a v1-scoped rule about retiring *history*
-(deactivate/block/cancel); a pricing-config row has no history to keep. If
-the owner prefers to preserve the ethos exactly, switch to a null-price
-sentinel `PUT` instead. The reference implementation uses `DELETE`; the
-ADR 0014 lists it for sign-off.
+(deactivate/block/cancel); a pricing-config row has no history to keep. The
+owner signed off the `DELETE` on 2026-11-26, as ADR 0014 requires; a
+null-price sentinel `PUT` was the alternative.
 
 ### 2.6 Views / Inputs
 
@@ -298,14 +297,12 @@ affect what*:
 
 matching the existing "Price edited | unchanged | new price" row.
 
-**Tier retirement — open decision.** Deactivating a tier stops new
+**Tier retirement — decided 2026-11-26.** Deactivating a tier stops new
 assignments (422) and frees its name for reuse. Resellers already assigned
-keep the tier's prices until the owner reassigns them. That is what the
-reference implementation does, pinned by a test, because it needs no lock
-on the tier at placement. The alternatives are to refuse deactivation while
-resellers are assigned (409) or to charge the base price while a tier is
-inactive; either makes placement or deactivation coordinate on the
-`price_tier` row. The owner picks one before this merges.
+keep the tier's prices until the owner reassigns them. The owner chose this
+over refusing deactivation while resellers are assigned (409) or charging
+the base price while a tier is inactive; it needs no lock on the tier at
+placement, and a test pins it.
 
 ### 2.9 Tests first
 
@@ -1379,5 +1376,5 @@ per ADR 0011); the rest are pure county.
 
 The draft ADR that stood here was accepted on 2026-11-26 as
 [ADR 0014: Begin the Beyond-v1 build, pricing first](../adr/0014-begin-beyond-v1-build.md).
-The lock-order rule it calls for is proposed as
+The lock-order rule it calls for was accepted the same day as
 [ADR 0015](../adr/0015-added-lock-targets-follow-the-canonical-four.md).

@@ -1,7 +1,7 @@
 # ADR 0015: Added lock targets follow the canonical four
 
 Date: 2026-11-26
-Status: proposed
+Status: accepted
 
 Supersedes the lock-order bullet of
 [ADR 0013](0013-ordering-persistence-uses-panache.md). The rest of ADR 0013
