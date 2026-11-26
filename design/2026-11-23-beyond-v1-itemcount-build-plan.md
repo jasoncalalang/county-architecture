@@ -1,7 +1,7 @@
 # Beyond-v1 build plan informed by Itemcount
 
 Date: 2026-11-23
-Status: proposed
+Status: accepted by [ADR 0014](../adr/0014-begin-beyond-v1-build.md) on 2026-11-26
 
 ## 1. Scope reality
 
@@ -34,7 +34,7 @@ this document recommends building them:
 | # | Feature | §5.2 rank | Effort | New tables | Touches placement lock path |
 |---|---|---|---|---|---|
 | 1 | Per-reseller price tiers | 1 (highest value) | M | `price_tier`, `product_tier_price` | yes (no new placement lock) |
-| 2 | Quotes → order | 3 | L | `quote`, `quote_line` | yes (quote in order's slot) |
+| 2 | Quotes → order | 3 | L | `quote`, `quote_line` | yes (quote after business) |
 | 3 | Receive-with-discrepancy | 2 (highest correctness) | M | `discrepancy_report`, `discrepancy_line` | no new root |
 | 4 | MOQ + order-create windows | 4 | M | none (additive columns) | no new lock targets |
 | 5 | Online payment link | 5 (lowest leverage) | M | `payment_link`, `payment_event` | tail child after order |
@@ -64,12 +64,15 @@ every proposal and are not restated in each section:
   order (ADR 0013). No proposal reorders those four or takes one of them
   out of turn. Three proposals add a lock target the ADR does not list, each
   at a stated position: the `price_tier` row after the reseller on tier
-  assignment (§2.8), the quote in the order's slot (§3.8) and the
-  `payment_link` row after the order (§6.8). All three follow one rule: a
-  row outside those four is locked only after every one of the four the
-  workflow locks, and no workflow locks it before one of them. ADR 0013 is
-  accepted and is not edited; a new ADR records the rule before the first
-  of these merges (§8).
+  assignment (§2.8), the quote after the business when a quote is accepted
+  (§3.8) and the `payment_link` row after the order (§6.8). All three follow
+  one rule: a row outside those four is locked only after every one of the
+  four the workflow locks, and no workflow locks it before one of them. The
+  rule is about rows that already exist. A row a workflow inserts in its own
+  transaction, such as the order a quote acceptance creates, is not a lock
+  target, because no other transaction can wait on it. ADR 0013 is accepted
+  and is not edited; a new ADR records the rule before the first of these
+  merges (§8).
 - **Immutability.** An order's lines, note, delivery date and total never
   change after placement; only status and paid change (ADR 0012). Captured
   `order_line` prices never change.
@@ -201,7 +204,7 @@ orders, so clearing one is safe. The v1 "nothing is deleted" rule
 (deactivate/block/cancel); a pricing-config row has no history to keep. If
 the owner prefers to preserve the ethos exactly, switch to a null-price
 sentinel `PUT` instead. The reference implementation uses `DELETE`; the
-draft ADR lists it for sign-off.
+ADR 0014 lists it for sign-off.
 
 ### 2.6 Views / Inputs
 
@@ -268,7 +271,7 @@ reseller. That is a reseller → price_tier pair outside placement, which
 ADR 0013's order does not list. No cycle is possible, because deactivating
 or renaming a tier takes only the tier lock and placement never takes it, so
 nothing holds the tier lock while waiting for a reseller. The pair is the
-first instance of the rule for added lock targets that draft ADR 0014 calls
+first instance of the rule for added lock targets that ADR 0014 calls
 for (§1.1, §8), and the first entry in the lock note of county's
 `api/README.md`.
 
@@ -524,10 +527,12 @@ ascending id to snapshot name/unit/price, then insert quote+lines.
 `PESSIMISTIC_WRITE` (order numbering + idempotency) → quote
 `PESSIMISTIC_WRITE` → new order; conversion copies captured quote prices and
 does **not** re-read `product.price`, so products are skipped and the chain
-reseller→business→quote→order is a safe prefix with the quote in the order's
-slot — no new deadlock class. New lock subject: the quote row, taken after
-business and immediately before the order it produces; send/cancel/decline
-lock only that single row.
+reseller → business → quote is a safe prefix of the canonical chain. The
+order that acceptance produces is inserted, not locked: no other transaction
+can see it before commit, so it adds no wait and no new deadlock class. New
+lock subject: the quote row, taken after every canonical lock the workflow
+takes, as the added-lock rule requires (§1.1, §8); send/cancel/decline lock
+only that single row.
 
 Consistent with ADR 0012 and extends its spirit. A quote is mutable only
 while draft/sent via whole-row state transitions; there is no quote line-edit
@@ -1360,7 +1365,7 @@ content, only in the Flyway version number. Build order:
 
 **Dependencies.** Quotes → tiers (shared captured-price primitive) is the only
 hard ordering dependency. Everything else is independent. Two features
-extend the ADR 0013 lock chain: quotes (the quote in the order's slot) and
+extend the ADR 0013 lock chain: quotes (the quote after the business, §3.8) and
 payments (`payment_link` as the tail child after order, §6.8). Price tiers
 reuse the product lock on placement (assignment adds a reseller →
 price_tier pair, §2.8), discrepancy hangs children off the order lock
@@ -1370,114 +1375,9 @@ per ADR 0011); the rest are pure county.
 
 ---
 
-## 8. Draft ADR
+## 8. ADR 0014
 
-> Proposed for `adr/0014-begin-beyond-v1-build.md`. In the repo's ADR idiom.
-
-# ADR 0014: Begin the Beyond-v1 build, pricing first
-
-Date: 2026-11-23
-Status: proposed
-
-## Context
-
-county v1 is a demo, not a pilot ([v1 design](../design/2026-10-16-v1-design.md)).
-Its scope was drawn as the thinnest slice that runs the wholesaler→reseller
-loop in front of a prospect. The
-[functional spec](../design/2026-10-31-v1-functional-spec.md) §2 lists the v1
-features as exhaustive and names, in §2 and §12 *Beyond v1*, the features
-deferred by decision: price tiers and per-reseller price lists, minimum order
-quantities, payments beyond the `paid` flag, and wholesaler edits / short-
-delivery discrepancy reports.
-[ADR 0012](0012-orders-are-immutable-after-placement.md) defers discrepancy
-reports specifically ("Short deliveries ... are a discrepancy report,
-deferred past v1") and asks to "revisit ... when a pilot customer's short
-deliveries need recording."
-
-A reverse-engineering study of the Itemcount ERP
-(`itemcount-deep-rea.md` §5.2 "What county should build next") ranks five
-post-v1 increments, all of which are faithful minimal analogues of Itemcount
-capabilities and all of which fit county's existing conventions: REST not
-GraphQL, Flyway-owned schema with composite `(tenant_id, id)` uniqueness and
-tenant-scoped FKs, the ADR 0013 pessimistic lock order, typed view/input
-DTOs, and immutability after placement. The design amendment *Beyond-v1 build
-plan informed by Itemcount* works each one through to a migration, endpoints,
-DTOs, lock-order impact and tests.
-
-We need a decision to lift the v1 scope freeze for these five, in a stated
-order, without reopening the decisions v1 made for good reasons.
-
-## Decision
-
-- Accept the five features in the amendment — per-reseller price tiers, quotes
-  → order, receive-with-discrepancy, MOQ + order-create windows, and online
-  payment link — as approved post-v1 work, to be built in that priority order.
-  Price tiers go first; quotes build on the captured-price primitive tiers
-  introduce.
-- Each feature is implemented as its own `V3+__*.sql` migration under ADR 0009
-  rules (forward-only, expand-first, no-op for existing tenants), with new
-  root tables carrying `UNIQUE (tenant_id, id)` and every table carrying
-  tenant-scoped composite FKs.
-- The ADR 0013 lock order is extended, not broken. ADR 0013 is accepted and
-  is not edited. A new ADR, accepted before the price-tier code merges,
-  supersedes its lock-order bullet with a rule rather than a longer list:
-  - reseller, business, products by ascending id and order keep their order;
-  - a workflow may lock a row outside those four only after every one of
-    the four it locks, and no workflow locks such a row before one of them;
-  - the added lock targets are listed, in order, in the lock note of
-    `api/README.md` in the county repository, and a workflow that takes
-    more than one takes them in that order. The list is updated in the
-    change that adds a target.
-- The first added target is the `price_tier` row, locked after the reseller
-  when a reseller's tier is assigned. Placement takes no new lock for tiers,
-  because a product's tier prices are guarded by that product's lock.
-  Quotes (reseller → business → quote, then the new order) and payments
-  (the `payment_link` row after the order) fit the rule as designed; each
-  adds its line to the list when it is built and needs no further ADR
-  unless it cannot fit the rule. Discrepancy hangs children off the order
-  lock without locking them; MOQ/windows add no lock.
-- ADR 0012 stands. No edit endpoint is added. Discrepancy reports are an
-  append-only sibling record, not an order edit; a short delivery never
-  recomputes an order total. Tier/quote/payment changes never mutate captured
-  `order_line` prices; only `status` and `paid` ever change on a placed order.
-- Two guard relaxations require explicit owner sign-off before their code
-  merges, because each loosens an accepted rule: (a) the override `DELETE` in
-  price tiers is the first delete in the codebase and is justified only as
-  pricing config with no history; (b) collectible payments let the webhook set
-  `paid` on a placed or confirmed order, loosening `mark-paid`'s current
-  "delivered only" guard and requiring `deliver` to stop overwriting the
-  `paid` flag of an order that is already paid.
-- What deactivating a price tier does to resellers already assigned to it is
-  decided by the owner before the tier code merges; the reference
-  implementation leaves them on the tier's prices.
-- Each feature ships tests first, covering the matrix ADR 0013 already
-  mandates (concurrent same-key submissions, keys reused across resellers,
-  rollback without a number gap, tenant isolation, edits racing a placement)
-  plus its own immutability and resolution rules, and must pass the OpenAPI
-  drift check.
-
-## Consequences
-
-- The v1 scope freeze is lifted for exactly these five, in this order. The
-  functional spec §12 rows for price tiers, MOQ, payments and discrepancy
-  reports move from *Beyond v1* to in-progress as each lands. The functional
-  spec (§12, and §11 for accepted amendments) is updated at that point; this
-  ADR stays as accepted, and a later ADR supersedes it if the decision
-  changes.
-- Quotes have the weakest mandate (the spec neither includes nor explicitly
-  defers them; only the RE report places them post-v1), so quotes do not start
-  until the owner confirms the increment. The other four rest on the spec's
-  own deferral rows or, for discrepancy, on ADR 0012's revisit trigger.
-- The money model stays the single `paid` boolean through all five.
-  `shortfall_total` on a discrepancy and `amount` on a payment link are
-  captured, informational figures; real receivables, partial payments and
-  per-reseller A/R remain a separate, later slice (functional spec §12).
-- The backend keeps one persistence style (Panache over Flyway, ADR 0013) and
-  one public hostname with the API under `/api` (ADR 0010); the only new
-  outside dependency is Xendit for the last feature, with secrets outside the
-  chart (ADR 0011) and the client stubbed so CI stays Docker-free (ADR 0005)
-  and makes no external calls.
-- Revisit the order if a pilot's needs invert the ranking — a pilot recording
-  short deliveries before it needs differentiated pricing would pull
-  discrepancy ahead of tiers, which the dependency graph allows (only
-  quotes→tiers is a hard dependency).
+The draft ADR that stood here was accepted on 2026-11-26 as
+[ADR 0014: Begin the Beyond-v1 build, pricing first](../adr/0014-begin-beyond-v1-build.md).
+The lock-order rule it calls for is proposed as
+[ADR 0015](../adr/0015-added-lock-targets-follow-the-canonical-four.md).
